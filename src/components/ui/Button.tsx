@@ -7,7 +7,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "md" | "sm";
 };
 
@@ -17,18 +17,20 @@ export default function Button({
   size = "md",
   ...props
 }: ButtonProps) {
+  // Aumentamos os tamanhos para uso confortável no celular
   const base =
     "inline-flex items-center justify-center font-medium rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1b1b1f] transition-colors";
 
   const sizes = {
-    md: "h-11 px-4 text-base",
-    sm: "h-9 px-3 text-sm",
+    md: "h-12 px-5 text-base",
+    sm: "h-10 px-4 text-sm",
   }[size];
 
   // Paleta:
-  // - Âmbar quente p/ botões primários (#C0742E)
-  // - Grafite escuro p/ base do app (#1b1b1f / #1f1f24)
-  // - Bordas brancas em 10% de opacidade p/ contornos
+  // - primary: âmbar (ação positiva principal)
+  // - secondary: borda clara (opção neutra)
+  // - ghost: texto discreto
+  // - danger: tom avermelhado para ações destrutivas
   const variants = {
     primary:
       "bg-[#C0742E] text-black hover:bg-[#d88033] focus:ring-[#C0742E]",
@@ -36,6 +38,8 @@ export default function Button({
       "bg-transparent text-zinc-200 border border-white/15 hover:bg-white/5 focus:ring-zinc-400",
     ghost:
       "bg-transparent text-zinc-400 hover:text-zinc-200 hover:bg-white/5 focus:ring-zinc-500",
+    danger:
+      "bg-transparent text-red-400 border border-red-500/40 hover:bg-red-500/10 hover:text-red-300 focus:ring-red-600",
   }[variant];
 
   return (

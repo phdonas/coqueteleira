@@ -70,10 +70,9 @@ export default function RecipeDetailPage() {
     };
   }, [id]);
 
-  // tentativa simples de embed youtube
+  // tenta transformar link de YouTube em embed
   const videoEmbedUrl = useMemo(() => {
     if (!video) return "";
-    // youtube normal
     const ytMatch = video.match(
       /(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_\-]+)/
     );
@@ -83,9 +82,56 @@ export default function RecipeDetailPage() {
     return "";
   }, [video]);
 
+  // Função utilitária:
+  // define para onde devemos voltar (lista com ou sem filtro)
+  function goBackToList() {
+    if (typeof window !== "undefined") {
+      const lastQ = sessionStorage.getItem("lastQuery") || "";
+      const dest = lastQ
+        ? `/?q=${encodeURIComponent(lastQ)}`
+        : "/";
+      router.push(dest);
+    } else {
+      router.push("/");
+    }
+  }
+
+  // Botão VOLTAR agora usa essa função
+  function handleBack() {
+    goBackToList();
+  }
+
+  // Exclusão da receita atual
+  async function handleDelete() {
+    // confirmação manual para evitar apagar sem querer
+    const ok = typeof window !== "undefined"
+      ? window.confirm(
+          "Tem certeza que deseja EXCLUIR esta receita?\nEsta ação não pode ser desfeita."
+        )
+      : false;
+
+    if (!ok) return;
+
+    // 1) remover ingredientes da receita
+    // 2) remover a própria receita
+    // fazemos em transação Dexie para garantir consistência
+    await db.transaction(
+      "rw",
+      db.recipe_ingredients,
+      db.recipes,
+      async () => {
+        await db.recipe_ingredients.where("recipe_id").equals(id).delete();
+        await db.recipes.delete(id as any);
+      }
+    );
+
+    // depois de excluir, voltamos para a lista correspondente
+    goBackToList();
+  }
+
   if (!loaded) {
     return (
-      <div className="text-sm text-zinc-400">
+      <div className="text-base text-zinc-400">
         Carregando receita…
       </div>
     );
@@ -93,7 +139,7 @@ export default function RecipeDetailPage() {
 
   if (notFound) {
     return (
-      <div className="text-sm text-zinc-400">
+      <div className="text-base text-zinc-400">
         Receita não encontrada.
       </div>
     );
@@ -119,7 +165,7 @@ export default function RecipeDetailPage() {
               className="w-full aspect-square object-cover rounded-xl border border-white/10 bg-[#2a2a31]"
             />
           ) : (
-            <div className="w-full aspect-square rounded-xl bg-[#2a2a31] border border-white/10 flex items-center justify-center text-[10px] text-zinc-500">
+            <div className="w-full aspect-square rounded-xl bg-[#2a2a31] border border-white/10 flex items-center justify-center text-[11px] text-zinc-500 text-center leading-tight">
               sem mídia
             </div>
           )}
@@ -136,35 +182,49 @@ export default function RecipeDetailPage() {
               </div>
 
               {codigo && (
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wide mt-1">
+                <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">
                   Código: {codigo}
                 </div>
               )}
             </div>
 
-            <div className="flex flex-col items-end gap-2 text-xs text-zinc-400">
+            <div className="flex flex-col items-end gap-2 text-zinc-400">
               {apresentacao && (
-                <div className="max-w-[180px] text-right leading-snug">
+                <div className="max-w-[200px] text-right leading-snug">
                   <span className="text-zinc-500 uppercase text-[10px] tracking-wide block">
                     Serviço
                   </span>
-                  <span className="text-zinc-200 text-sm">{apresentacao}</span>
+                  <span className="text-zinc-200 text-sm">
+                    {apresentacao}
+                  </span>
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 justify-end">
+                {/* Editar */}
                 <Link href={`/edit/${id}`}>
                   <Button
                     variant="secondary"
                     size="sm"
-                   >
+                  >
                     Editar
                   </Button>
                 </Link>
+
+                {/* Excluir */}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleDelete}
+                >
+                  Excluir
+                </Button>
+
+                {/* Voltar */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.back()}
+                  onClick={handleBack}
                 >
                   Voltar
                 </Button>
@@ -173,13 +233,13 @@ export default function RecipeDetailPage() {
           </div>
 
           {comentarios && (
-            <div className="text-[11px] text-zinc-400 mt-3 leading-relaxed">
+            <div className="text-sm text-zinc-400 mt-3 leading-relaxed">
               {comentarios}
             </div>
           )}
 
           {url && (
-            <div className="text-sm text-zinc-500 mt-2 truncate">
+            <div className="text-xs text-zinc-500 mt-2 truncate">
               Fonte original:&nbsp;
               <a
                 href={url}
@@ -222,7 +282,7 @@ export default function RecipeDetailPage() {
           ))}
 
           {ings.length === 0 && (
-            <li className="text-zinc-500 text-sm">
+            <li className="text-zinc-500 text-base">
               (Sem ingredientes cadastrados)
             </li>
           )}
