@@ -1,151 +1,246 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { db } from '@/lib/db';
-import { useParams, useRouter } from 'next/navigation';
-import VideoPlayer from '@/components/VideoPlayer';
+import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { db } from "@/lib/db";
+import Button from "@/components/ui/Button";
 
-type Ing = {
-  id: string;
-  quantidade_raw?: string;
-  unidade_label?: string;
+type RowIng = {
+  quantidade_raw: string;
+  unidade_label: string;
   produto_raw: string;
 };
 
 export default function RecipeDetailPage() {
-  const router = useRouter();
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [recipe, setRecipe] = useState<any>(null);
-  const [ings, setIngs] = useState<Ing[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const [nome, setNome] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [imagem, setImagem] = useState("");
+  const [video, setVideo] = useState("");
+  const [comentarios, setComentarios] = useState("");
+  const [modo, setModo] = useState("");
+  const [apresentacao, setApresentacao] = useState("");
+  const [url, setUrl] = useState("");
+  const [ings, setIngs] = useState<RowIng[]>([]);
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
     (async () => {
-      try {
-        const r = await db.recipes.get(id);
-        if (!mounted) return;
-        if (!r) {
-          setLoading(false);
-          alert('Receita não encontrada.');
-          router.push('/');
-          return;
-        }
-        setRecipe(r);
-        const list = await db.recipe_ingredients.where('recipe_id').equals(id).toArray();
-        if (!mounted) return;
-        setIngs(list as Ing[]);
-        setLoading(false);
-      } catch (e) {
-        console.error(e);
-        setLoading(false);
-        alert('Falha ao carregar a receita.');
-      }
-    })();
-    return () => { mounted = false; };
-  }, [id, router]);
+      const r = await db.recipes.get(id);
+      if (!active) return;
 
-  if (loading) return <div>Carregando…</div>;
-  if (!recipe) return null;
+      if (!r) {
+        setNotFound(true);
+        setLoaded(true);
+        return;
+      }
+
+      setNome(r.nome || "");
+      setCodigo(r.codigo || "");
+      setImagem(r.imagem_url || "");
+      setVideo(r.video_url || "");
+      setComentarios(r.comentarios || "");
+      setModo(r.modo_preparo || "");
+      setApresentacao(r.apresentacao || "");
+      setUrl(r.url || "");
+
+      const list = await db.recipe_ingredients
+        .where("recipe_id")
+        .equals(id)
+        .toArray();
+      if (!active) return;
+      setIngs(
+        list.map((i: any) => ({
+          quantidade_raw: i.quantidade_raw || "",
+          unidade_label: i.unidade_label || "",
+          produto_raw: i.produto_raw || "",
+        }))
+      );
+
+      setLoaded(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  // tentativa simples de embed youtube
+  const videoEmbedUrl = useMemo(() => {
+    if (!video) return "";
+    // youtube normal
+    const ytMatch = video.match(
+      /(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_\-]+)/
+    );
+    if (ytMatch && ytMatch[1]) {
+      return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    }
+    return "";
+  }, [video]);
+
+  if (!loaded) {
+    return (
+      <div className="text-sm text-zinc-400">
+        Carregando receita…
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="text-sm text-zinc-400">
+        Receita não encontrada.
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Cabeçalho da receita */}
-      <div className="bg-white border rounded-xl p-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-2xl font-bold">{recipe.nome}</div>
-            <div className="text-xs text-slate-600">{recipe.codigo}</div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => router.push(`/edit/${recipe.id}`)}
-              className="px-3 py-2 border rounded bg-white hover:bg-slate-50"
-            >
-              Editar
-            </button>
-            <a
-              href="/"
-              className="px-3 py-2 border rounded bg-white hover:bg-slate-50"
-            >
-              Voltar
-            </a>
-          </div>
-        </div>
-
-        {/* Mídia: vídeo tem prioridade; senão mostra imagem */}
-        {recipe.video_url ? (
-          <div className="mt-3">
-            <VideoPlayer url={recipe.video_url} />
-          </div>
-        ) : recipe.imagem_url ? (
-          <img
-            src={recipe.imagem_url}
-            alt={recipe.nome}
-            className="mt-3 max-h-80 w-full rounded-xl object-cover"
-          />
-        ) : null}
-
-        {/* Link para a fonte externa */}
-        {recipe.url && (
-          <div className="mt-2 text-sm">
-            <a
-              href={recipe.url}
-              target="_blank"
-              className="text-blue-600 underline"
-            >
-              Ver receita na web
-            </a>
-          </div>
-        )}
-      </div>
-
-      {/* Ingredientes + Preparo */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white border rounded-xl p-4">
-          <div className="font-semibold mb-2">Ingredientes</div>
-          {ings.length ? (
-            <ul className="list-disc pl-5">
-              {ings.map((i) => (
-                <li key={i.id}>
-                  {[i.quantidade_raw, i.unidade_label, i.produto_raw]
-                    .filter(Boolean)
-                    .join(' ')}
-                </li>
-              ))}
-            </ul>
+      <section className="bg-[#1f1f24] border border-white/10 rounded-2xl p-4 shadow-[0_24px_60px_rgba(0,0,0,0.8)] flex flex-col gap-4 md:flex-row md:items-start">
+        <div className="flex-shrink-0 w-full md:w-48">
+          {videoEmbedUrl ? (
+            <div className="aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
+              <iframe
+                src={videoEmbedUrl}
+                className="w-full h-full"
+                allowFullScreen
+              />
+            </div>
+          ) : imagem ? (
+            <img
+              src={imagem}
+              alt={nome}
+              className="w-full aspect-square object-cover rounded-xl border border-white/10 bg-[#2a2a31]"
+            />
           ) : (
-            <div className="text-sm text-slate-600">—</div>
+            <div className="w-full aspect-square rounded-xl bg-[#2a2a31] border border-white/10 flex items-center justify-center text-[10px] text-zinc-500">
+              sem mídia
+            </div>
           )}
         </div>
 
-        <div className="bg-white border rounded-xl p-4">
-          <div className="font-semibold mb-2">Modo de preparo</div>
-          <div className="whitespace-pre-wrap text-sm">
-            {recipe.modo_preparo || '—'}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[#C0742E] text-xs font-medium uppercase tracking-wide mb-1">
+                Coquetéis do Paulo
+              </div>
+              <div className="text-zinc-100 font-semibold text-2xl leading-tight break-words">
+                {nome || "Sem título"}
+              </div>
+
+              {codigo && (
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wide mt-1">
+                  Código: {codigo}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-end gap-2 text-xs text-zinc-400">
+              {apresentacao && (
+                <div className="max-w-[180px] text-right leading-snug">
+                  <span className="text-zinc-500 uppercase text-[10px] tracking-wide block">
+                    Serviço
+                  </span>
+                  <span className="text-zinc-200 text-sm">{apresentacao}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Link href={`/edit/${id}`}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                   >
+                    Editar
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.back()}
+                >
+                  Voltar
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {comentarios && (
+            <div className="text-[11px] text-zinc-400 mt-3 leading-relaxed">
+              {comentarios}
+            </div>
+          )}
+
+          {url && (
+            <div className="text-sm text-zinc-500 mt-2 truncate">
+              Fonte original:&nbsp;
+              <a
+                href={url}
+                target="_blank"
+                className="text-[#C0742E] hover:text-[#d88033] underline"
+                rel="noreferrer"
+              >
+                {url}
+              </a>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Ingredientes */}
+      <section className="bg-[#1f1f24] border border-white/10 rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.8)]">
+        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+          <div className="text-zinc-100 font-semibold text-base">
+            Ingredientes
+          </div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wide">
+            dose / produto
           </div>
         </div>
-      </div>
 
-      {/* Apresentação sugerida */}
-      <div className="bg-white border rounded-xl p-4">
-        <div className="font-semibold mb-2">Apresentação sugerida</div>
-        <div className="whitespace-pre-wrap text-sm">
-          {recipe.apresentacao || '—'}
-        </div>
-      </div>
+        <ul className="p-4 text-base text-zinc-200 space-y-2">
+          {ings.map((ing, idx) => (
+            <li key={idx} className="flex flex-wrap gap-2">
+              <span className="text-zinc-100">
+                {[
+                  ing.quantidade_raw,
+                  ing.unidade_label,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              </span>
+              <span className="text-zinc-400">—</span>
+              <span className="text-zinc-300">{ing.produto_raw}</span>
+            </li>
+          ))}
 
-      {/* Observações/Comentários */}
-      {recipe.comentarios ? (
-        <div className="bg-white border rounded-xl p-4">
-          <div className="font-semibold mb-2">Observações</div>
-          <div className="whitespace-pre-wrap text-sm">
-            {recipe.comentarios}
+          {ings.length === 0 && (
+            <li className="text-zinc-500 text-sm">
+              (Sem ingredientes cadastrados)
+            </li>
+          )}
+        </ul>
+      </section>
+
+      {/* Preparo */}
+      <section className="bg-[#1f1f24] border border-white/10 rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.8)]">
+        <div className="p-4 border-b border-white/5">
+          <div className="text-zinc-100 font-semibold text-base">
+            Modo de preparo
           </div>
         </div>
-      ) : null}
+
+        <div className="p-4 text-base text-zinc-300 whitespace-pre-wrap leading-relaxed">
+          {modo || "—"}
+        </div>
+      </section>
     </div>
   );
 }
