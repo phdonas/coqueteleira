@@ -1,4 +1,4 @@
-export function removeAcentos(s: string): string {
+﻿export function removeAcentos(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 export function norm(s: string): string {
@@ -25,7 +25,7 @@ export function parseQuantidade(q: string): number | undefined {
   return isNaN(num) ? undefined : num;
 }
 
-// Conversões (padrões, podem ser configuradas futuramente)
+// ConversÃµes (padrÃµes, podem ser configuradas futuramente)
 const CONV: Record<string, number> = {
   ml: 1,
   tsp: 5,
@@ -35,8 +35,8 @@ const CONV: Record<string, number> = {
   barspoon: 5,
   dash: 1,
   gota: 0.05,
-  unidade: 0, // não converte para ml
-  g: 1        // simplificação
+  unidade: 0, // nÃ£o converte para ml
+  g: 1        // simplificaÃ§Ã£o
 };
 
 export function toMl(valor: number, unidade_padrao: string | undefined): number | undefined {
@@ -51,7 +51,7 @@ const STOP = new Set(['de','da','do','das','dos','e','em','com','a','o','as','os
 /**
  * Gera termos de busca a partir do nome do produto/ingrediente.
  * Inclui a frase inteira normalizada + tokens individuais (sem stopwords).
- * Ex.: "Suco de limão siciliano" -> ["suco de limao siciliano","suco","limao","siciliano"]
+ * Ex.: "Suco de limÃ£o siciliano" -> ["suco de limao siciliano","suco","limao","siciliano"]
  */
 export function productTerms(prod: string): string[] {
   const p = norm(prod);
@@ -59,3 +59,4 @@ export function productTerms(prod: string): string[] {
   const tokens = p.split(' ').filter(t => t && !STOP.has(t) && t.length >= 2);
   return Array.from(new Set([p, ...tokens]));
 }
+

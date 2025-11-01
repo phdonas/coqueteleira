@@ -1,34 +1,34 @@
+/* src/app/globals.css */
+/* src/app/globals.css */
+/* (Fix — Tailwind v4: remove @tailwind/@layer e usa @import "tailwindcss") */
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Opcional: força tema dark coerente */
+:root { color-scheme: dark; }
+
+/* Base Forms High-Contrast (mobile-first) */
+:where(
+  input[type="text"],
+  input[type="email"],
+  input[type="url"],
+  input[type="search"],
+  input[type="password"],
+  textarea,
+  select
+) {
+  @apply rounded-lg bg-neutral-900 text-white placeholder:text-neutral-400
+          ring-1 ring-neutral-700 focus:outline-none focus:ring-2 focus:ring-emerald-500
+          px-3 py-2;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Botões padrão com bom contraste */
+:where(button) {
+  @apply rounded-md text-white ring-1 ring-white/15;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Card utilitário suave (usado em alguns componentes) */
+.card {
+  @apply rounded-xl border border-white/10 bg-white/5;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* utilidade para truncar linhas em cards (usada na lista) */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}

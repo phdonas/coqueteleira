@@ -1,4 +1,4 @@
-export function uuid() {
+﻿export function uuid() {
   return crypto.randomUUID();
 }
 export function genCodigo(prefix = 'DRK') {
@@ -9,3 +9,4 @@ export function genCodigo(prefix = 'DRK') {
   const seq = Math.floor(Math.random()*1000).toString().padStart(3,'0');
   return `${prefix}-${y}${m}${day}-${seq}`;
 }
+

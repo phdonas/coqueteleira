@@ -1,176 +1,102 @@
-"use client";
+﻿// src/app/HomePageInner.tsx
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { db } from "@/lib/db";
-import { norm, productTerms } from "@/lib/normalize";
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 
-type Recipe = any;
-
-function arraysEqual(a: string[] = [], b: string[] = []) {
-  if (a.length !== b.length) return false;
-  const A = [...a].sort();
-  const B = [...b].sort();
-  return A.every((v, i) => v === B[i]);
-}
+type RecipeCard = {
+  id: string;
+  // atenÃ§Ã£o: a base usa "nome" (nÃ£o "title")
+  nome: string;
+  apresentacao: string | null;
+  imagem_url: string | null;
+  url: string | null;
+};
 
 export default function HomePageInner() {
-  // lê o parâmetro ?q=tequila da URL
-  const searchParams = useSearchParams();
-  const initialQ = searchParams.get("q") ?? "";
+  const [q, setQ] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<RecipeCard[]>([]);
 
-  const [q, setQ] = useState(initialQ);
-  const [items, setItems] = useState<Recipe[]>([]);
-  const [refreshTick, setRefreshTick] = useState(0);
+  const queryString = useMemo(() => (q ? `?q=${encodeURIComponent(q)}` : ''), [q]);
 
-  // carrega receitas do Dexie e gera o índice de ingredientes normalizados
   useEffect(() => {
+    let alive = true;
     (async () => {
-      const recs = await db.recipes.toArray();
-      setItems(recs);
-
-      for (const r of recs) {
-        const ingRows = await db.recipe_ingredients
-          .where("recipe_id")
-          .equals(r.id)
-          .toArray();
-
-        const terms = Array.from(
-          new Set(
-            ingRows.flatMap((i: any) => productTerms(i.produto_raw))
-          )
-        );
-
-        if (!arraysEqual(terms, r.ingredientes_norm_set || [])) {
-          await db.recipes.update(r.id, {
-            ingredientes_norm_set: terms,
-          });
-        }
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/recipes${queryString}`, { cache: 'no-store' });
+        const js = await res.json();
+        if (alive) setItems(js.items ?? []);
+      } catch {
+        if (alive) setItems([]);
+      } finally {
+        if (alive) setLoading(false);
       }
-
-      const updated = await db.recipes.toArray();
-      setItems(updated);
-      setRefreshTick((x) => x + 1);
     })();
-  }, []);
-
-  // aplica filtro de busca (por nome OU por ingredientes)
-  const results = useMemo(() => {
-    const query = q.trim();
-    if (!query) return items;
-
-    const parts = query
-      .split(",")
-      .map((s) => norm(s))
-      .filter(Boolean);
-
-    if (parts.length > 1) {
-      // vários ingredientes separados por vírgula = AND
-      return items.filter(
-        (r: any) =>
-          (r.ingredientes_norm_set || []).length &&
-          parts.every((t) =>
-            (r.ingredientes_norm_set as string[]).includes(t)
-          )
-      );
-    } else {
-      // busca por nome OU por ingrediente único
-      const single = norm(query);
-      return items.filter((r: any) => {
-        const nomeMatch = norm(r.nome || "").includes(single);
-        const ingMatch = (r.ingredientes_norm_set || []).includes(single);
-        return nomeMatch || ingMatch;
-      });
-    }
-  }, [q, items, refreshTick]);
-
-  // salva o filtro atual para que a tela de receita saiba "voltar"
-  function handleSelectRecipe() {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("lastQuery", q);
-    }
-  }
+    return () => {
+      alive = false;
+    };
+  }, [queryString]);
 
   return (
-    <div className="space-y-6">
-      {/* Barra de busca e botão Nova (desktop) */}
-      <div className="flex items-center gap-3 flex-wrap">
+    <div className="mx-auto max-w-5xl px-4 py-6">
+      <div className="mb-4 flex gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder='Buscar: "negroni" ou "gin, campari, vermute"'
-          className="flex-1 bg-[#2a2a31] text-zinc-100 placeholder-zinc-500 border border-white/10 rounded-xl px-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-[#C0742E]/40 focus:border-[#C0742E]/40"
+          className="w-full rounded-md bg-neutral-900/90 px-3 py-2 text-white outline-none ring-1 ring-neutral-700 placeholder:text-neutral-400"
         />
+        <button
+          onClick={() => {}}
+          className="rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-500"
+        >
+          Buscar
+        </button>
 
         <Link
-          href="/new"
-          className="hidden sm:inline-flex bg-[#C0742E] text-black text-base font-medium rounded-xl h-12 px-5 items-center justify-center hover:bg-[#d88033]"
+          href="/recipe/new"
+          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
         >
           + Nova Receita
         </Link>
       </div>
 
-      {/* Lista de receitas */}
-      {results.length === 0 && (
-        <div className="text-base text-zinc-500">
-          Nenhuma receita encontrada.
-        </div>
+      {loading && <p className="text-sm text-neutral-400">Carregandoâ€¦</p>}
+      {!loading && items.length === 0 && (
+        <p className="text-sm text-neutral-400">Nenhuma receita encontrada.</p>
       )}
 
-      <div className="grid md:grid-cols-2 gap-4">
-        {results.map((r: any) => (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {items.map((r) => (
           <Link
             key={r.id}
             href={`/recipe/${r.id}`}
-            onClick={handleSelectRecipe}
-            className="group bg-[#1f1f24] border border-white/10 rounded-2xl p-4 shadow-[0_24px_60px_rgba(0,0,0,0.8)] hover:border-[#C0742E]/40 hover:shadow-[0_30px_80px_rgba(192,116,46,0.2)] transition-colors"
+            className="group flex items-stretch gap-3 rounded-xl bg-neutral-900/95 p-3 ring-1 ring-neutral-800 hover:ring-neutral-600"
           >
-            <div className="flex items-start gap-3">
+            <div className="flex h-20 w-24 items-center justify-center overflow-hidden rounded-md bg-neutral-800 ring-1 ring-neutral-700">
               {r.imagem_url ? (
-                <img
-                  src={r.imagem_url}
-                  alt={r.nome}
-                  className="w-16 h-16 rounded-lg object-cover border border-white/10 flex-shrink-0"
-                />
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={r.imagem_url} alt={r.nome} className="h-full w-full object-cover" />
               ) : (
-                <div className="w-16 h-16 rounded-lg bg-[#2a2a31] border border-white/10 flex items-center justify-center text-[11px] text-zinc-500 flex-shrink-0 text-center leading-tight">
-                  sem
-                  <br />
-                  foto
-                </div>
+                <span className="text-xs text-neutral-400">sem foto</span>
               )}
+            </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="text-zinc-100 font-semibold leading-snug text-lg truncate group-hover:text-[#C0742E]">
-                  {r.nome || "Sem título"}
-                </div>
-
-                {r.codigo && (
-                  <div className="text-xs text-zinc-500 uppercase tracking-wide">
-                    {r.codigo}
-                  </div>
-                )}
-
-                <div className="text-sm text-zinc-400 mt-2 line-clamp-2">
-                  {(r.ingredientes_norm_set || [])
-                    .slice(0, 5)
-                    .join(", ")}
-                </div>
-              </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-base font-semibold text-white">
+                {r.nome ?? 'Sem tÃ­tulo'}
+              </h3>
+              <p className="mt-1 line-clamp-2 text-sm text-neutral-300">
+                {r.apresentacao ?? 'â€”'}
+              </p>
             </div>
           </Link>
         ))}
       </div>
-
-      <div className="text-xs text-zinc-600 leading-snug">
-        Dica: separe ingredientes por vírgula para buscar combinações
-        obrigatórias. Ex.:{" "}
-        <span className="text-zinc-400">
-          cachaça, limão, açúcar
-        </span>{" "}
-        retorna só receitas que tenham TODOS.
-      </div>
     </div>
   );
 }
+
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState } from 'react';
 import { parseQuantidade, toMl } from '@/lib/normalize';
 
@@ -25,8 +25,9 @@ export default function ConverterWidget() {
         </select>
       </div>
       <div className="text-sm mt-2">
-        {ml !== undefined ? <span>= <b>{ml.toFixed(1)} ml</b></span> : <i>—</i>}
+        {ml !== undefined ? <span>= <b>{ml.toFixed(1)} ml</b></span> : <i>â€”</i>}
       </div>
     </div>
   );
 }
+

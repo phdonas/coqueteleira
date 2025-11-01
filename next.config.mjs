@@ -1,11 +1,18 @@
-import withPWA from 'next-pwa';
+// next.config.mjs
+// next.config.mjs
+// (Item 9 — Imagens remotas: garante domínios padrão usados pelo app)
 
-const isProd = process.env.NODE_ENV === 'production';
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "www.thecocktaildb.com" },
+      { protocol: "https", hostname: "i.imgur.com" },
+      { protocol: "https", hostname: "img.youtube.com" },
+      { protocol: "https", hostname: "i.ytimg.com" },
+    ],
+  },
+};
 
-export default withPWA({
-  dest: 'public',
-  disable: !isProd, // SW só em produção
-})({
-  reactStrictMode: true,
-  images: { domains: ['i.ytimg.com'] }, // se usar thumbs do YouTube
-});
+export default nextConfig;
+
+

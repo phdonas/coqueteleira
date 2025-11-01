@@ -1,178 +1,156 @@
-'use client';
-
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { db } from '@/lib/db';
-import { uuid, genCodigo } from '@/lib/id';
-import { parseQuantidade, productTerms } from '@/lib/normalize';
-import IngredientTable from '@/components/IngredientTable';
-import ConverterWidget from '@/components/ConverterWidget';
-
-type Row = { quantidade_raw: string; unidade_label: string; produto_raw: string; };
+﻿// src/app/new/page.tsx
+"use client";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import VideoPlayer from "@/components/VideoPlayer";
 
 export default function NewRecipePage() {
   const router = useRouter();
+  const [form, setForm] = useState({
+    nome: "",
+    url: "",
+    imagem_url: "",
+    video_url: "",
+    apresentacao: "",
+    modo_preparo: "",
+    ingredientesText: "",
+    is_public: true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Campos do formulário
-  const [nome, setNome] = useState('');
-  const [codigo] = useState(genCodigo());
-  const [url, setUrl] = useState('');
-  const [imagem, setImagem] = useState('');
-  const [video, setVideo] = useState('');
-  const [comentarios, setComentarios] = useState('');
-  const [modo, setModo] = useState('');
-  const [apresentacao, setApresentacao] = useState('');
-
-  // Ingredientes (tabela inline)
-  const [ings, setIngs] = useState<Row[]>([
-    { quantidade_raw: '', unidade_label: 'ml', produto_raw: '' },
-  ]);
-
-  async function salvar() {
-    // validações simples
-    if (!nome.trim()) { alert('Informe o nome da receita'); return; }
-    if (!ings.some(i => i.produto_raw.trim())) { alert('Inclua ao menos 1 ingrediente'); return; }
-
-    const id = uuid();
-    const now = Date.now();
-
-    // Índice para busca por ingredientes (frase + tokens)
-    const ingredientes_norm_set = Array.from(new Set(
-      ings.flatMap(i => productTerms(i.produto_raw))
-    ));
-
-    // transação Dexie: cria receita + ingredientes
-    await db.transaction('rw', db.recipes, db.recipe_ingredients, async () => {
-      await db.recipes.add({
-        id,
-        codigo,
-        nome,
-        url,
-        imagem_url: imagem,
-        video_url: video,
-        modo_preparo: modo,
-        apresentacao,
-        comentarios,
-        ingredientes_norm_set,
-        created_at: now,
-        updated_at: now
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(form),
       });
-
-      for (const i of ings) {
-        await db.recipe_ingredients.add({
-          id: uuid(),
-          recipe_id: id,
-          quantidade_raw: i.quantidade_raw,
-          quantidade_num: parseQuantidade(i.quantidade_raw),
-          unidade_padrao: (i.unidade_label || '').toLowerCase() as any,
-          unidade_label: i.unidade_label,
-          produto_raw: i.produto_raw,
-          produto_norm: (i.produto_raw || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ')
-        });
-      }
-    });
-
-    alert('Receita salva!');
-    router.push(`/recipe/${id}`);
+      const js = await res.json();
+      if (!js.ok) throw new Error(js.error || "Erro ao salvar");
+      router.push(`/recipe/${js.item.id}`);
+    } catch (err: any) {
+      setError(err.message ?? "Erro inesperado.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-      {/* Formulário principal */}
-      <div className="space-y-4">
-        {/* Cabeçalho */}
-        <div className="bg-white border rounded-xl p-4 space-y-3">
-          <div className="font-semibold text-lg">Nova Receita</div>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm">Nome da receita</label>
-              <input
-                value={nome}
-                onChange={e=>setNome(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm">Código (auto)</label>
-              <input
-                value={codigo}
-                readOnly
-                className="w-full border rounded px-3 py-2 bg-slate-50"
-              />
-            </div>
-            <div>
-              <label className="text-sm">URL da receita</label>
-              <input
-                value={url}
-                onChange={e=>setUrl(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm">Imagem (URL)</label>
-              <input
-                value={imagem}
-                onChange={e=>setImagem(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm">Vídeo (URL)</label>
-              <input
-                value={video}
-                onChange={e=>setVideo(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm">Comentários</label>
-              <input
-                value={comentarios}
-                onChange={e=>setComentarios(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <h1 className="mb-4 text-2xl font-semibold text-white">Nova receita</h1>
+      <form onSubmit={onSubmit} className="space-y-4">
+
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Nome*</label>
+          <input
+            required
+            value={form.nome}
+            onChange={(e) => setForm((s) => ({ ...s, nome: e.target.value }))}
+            className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm text-neutral-300">URL de origem (opcional)</label>
+            <input
+              value={form.url}
+              onChange={(e) => setForm((s) => ({ ...s, url: e.target.value }))}
+              className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-neutral-300">Imagem (URL)</label>
+            <input
+              value={form.imagem_url}
+              onChange={(e) => setForm((s) => ({ ...s, imagem_url: e.target.value }))}
+              className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
+              placeholder="https://â€¦ .jpg | .png"
+            />
           </div>
         </div>
 
-        {/* Tabela de Ingredientes */}
-        <IngredientTable value={ings} onChange={setIngs} />
+        {form.imagem_url && (
+          <div className="rounded-xl overflow-hidden border border-white/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={form.imagem_url} alt="Preview" className="w-full object-cover" />
+          </div>
+        )}
 
-        {/* Modo de preparo */}
-        <div className="bg-white border rounded-xl p-4">
-          <div className="font-semibold mb-2">Modo de preparo</div>
-          <textarea
-            value={modo}
-            onChange={e=>setModo(e.target.value)}
-            className="w-full border rounded px-3 py-2 min-h-[120px]"
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">VÃ­deo (URL)</label>
+          <input
+            value={form.video_url}
+            onChange={(e) => setForm((s) => ({ ...s, video_url: e.target.value }))}
+            className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
+            placeholder="https://youtu.be/â€¦ | https://vimeo.com/â€¦"
           />
         </div>
 
-        {/* Apresentação sugerida */}
-        <div className="bg-white border rounded-xl p-4">
-          <div className="font-semibold mb-2">Apresentação sugerida</div>
-          <textarea
-            value={apresentacao}
-            onChange={e=>setApresentacao(e.target.value)}
-            className="w-full border rounded px-3 py-2 min-h-[100px]"
+        {form.video_url && (
+          <div className="rounded-xl overflow-hidden border border-white/10">
+            <VideoPlayer url={form.video_url} />
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">ApresentaÃ§Ã£o</label>
+          <input
+            value={form.apresentacao}
+            onChange={(e) => setForm((s) => ({ ...s, apresentacao: e.target.value }))}
+            className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
           />
         </div>
 
-        {/* Ações */}
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Modo de preparo</label>
+          <textarea
+            rows={5}
+            value={form.modo_preparo}
+            onChange={(e) => setForm((s) => ({ ...s, modo_preparo: e.target.value }))}
+            className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Ingredientes (um por linha)</label>
+          <textarea
+            rows={5}
+            value={form.ingredientesText}
+            onChange={(e) => setForm((s) => ({ ...s, ingredientesText: e.target.value }))}
+            className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white ring-1 ring-neutral-700"
+            placeholder={`60 ml gin\n10 ml vermouth seco`}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            id="pub"
+            type="checkbox"
+            checked={form.is_public}
+            onChange={(e) => setForm((s) => ({ ...s, is_public: e.target.checked }))}
+            className="h-4 w-4"
+          />
+          <label htmlFor="pub" className="text-sm text-neutral-300">Tornar pÃºblica</label>
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
         <div className="flex gap-2">
-          <button onClick={salvar} className="px-4 py-2 border rounded bg-white hover:bg-slate-50">
-            Salvar
+          <button
+            disabled={saving}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {saving ? "Salvandoâ€¦" : "Salvar"}
           </button>
-          <a href="/" className="px-4 py-2 border rounded bg-white hover:bg-slate-50">
-            Cancelar
-          </a>
+          <a href="/" className="rounded-md border border-neutral-700 px-4 py-2">Cancelar</a>
         </div>
-      </div>
-
-      {/* Lateral */}
-      <div className="space-y-4">
-        <ConverterWidget />
-      </div>
+      </form>
     </div>
   );
 }
+

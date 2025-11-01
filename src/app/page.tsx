@@ -1,26 +1,23 @@
+﻿// src/app/page.tsx
+// src/app/page.tsx
+// Server wrapper da Home (remove hooks da page e renderiza o client HomePageInner em <Suspense>)
+
 import { Suspense } from "react";
 import HomePageInner from "./HomePageInner";
 
-// Estas configurações agora vivem em um componente SERVER (este arquivo),
-// que é o lugar certo pra isso.
+// Evita SSG e problemas de prerender quando a UI depende de estado/params no client
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// A página raiz "/" agora apenas renderiza o componente client
-// dentro de <Suspense>, com um fallback simples.
-// Isso resolve:
-//  - useSearchParams() precisa estar em componente client dentro de Suspense
-//  - Vercel não tenta fazer SSG dessa página
 export default function Page() {
   return (
     <Suspense
       fallback={
-        <div className="text-base text-zinc-500 px-4 pt-8">
-          Carregando…
-        </div>
+        <div className="px-4 py-8 text-sm text-neutral-300">Carregandoâ€¦</div>
       }
     >
       <HomePageInner />
     </Suspense>
   );
 }
+

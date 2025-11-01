@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -42,7 +42,7 @@ function NavButton({
 export default function BottomNav() {
   const pathname = usePathname();
 
-  // Ativação simples por prefixo
+  // AtivaÃ§Ã£o simples por prefixo
   const isActive = (p: string) =>
     pathname === p || pathname.startsWith(p + "/");
 
@@ -75,3 +75,4 @@ export default function BottomNav() {
     </nav>
   );
 }
+

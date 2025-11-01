@@ -1,16 +1,14 @@
-import Dexie, { Table } from 'dexie';
-import { Recipe, RecipeIngredient } from './types';
+﻿// src/lib/db.ts
+// src/lib/db.ts
+// Tipos e (opcionalmente) helpers de dados
 
-export class AppDB extends Dexie {
-  recipes!: Table<Recipe, string>;
-  recipe_ingredients!: Table<RecipeIngredient, string>;
+export type RecipeUI = {
+  id: string;
+  nome: string;
+  apresentacao: string | null;
+  imagem_url: string | null;
+  video_url: string | null;
+  is_public?: boolean;
+};
 
-  constructor() {
-    super('coqueteleira');
-    this.version(1).stores({
-      recipes: 'id, nome, codigo, created_at, updated_at',
-      recipe_ingredients: 'id, recipe_id, produto_norm'
-    });
-  }
-}
-export const db = new AppDB();
+

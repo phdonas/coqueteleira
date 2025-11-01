@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 
@@ -17,7 +17,7 @@ export default function Button({
   size = "md",
   ...props
 }: ButtonProps) {
-  // Aumentamos os tamanhos para uso confortável no celular
+  // Aumentamos os tamanhos para uso confortÃ¡vel no celular
   const base =
     "inline-flex items-center justify-center font-medium rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1b1b1f] transition-colors";
 
@@ -27,10 +27,10 @@ export default function Button({
   }[size];
 
   // Paleta:
-  // - primary: âmbar (ação positiva principal)
-  // - secondary: borda clara (opção neutra)
+  // - primary: Ã¢mbar (aÃ§Ã£o positiva principal)
+  // - secondary: borda clara (opÃ§Ã£o neutra)
   // - ghost: texto discreto
-  // - danger: tom avermelhado para ações destrutivas
+  // - danger: tom avermelhado para aÃ§Ãµes destrutivas
   const variants = {
     primary:
       "bg-[#C0742E] text-black hover:bg-[#d88033] focus:ring-[#C0742E]",
@@ -49,3 +49,4 @@ export default function Button({
     />
   );
 }
+
