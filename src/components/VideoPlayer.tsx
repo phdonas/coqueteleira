@@ -1,111 +1,64 @@
 ﻿// src/components/VideoPlayer.tsx
-// (Passo 1 â€” Incremental: Lite YouTube Embed + MP4 + fallback <iframe> com alto contraste)
+// src/components/VideoPlayer.tsx
+// Player leve com lazy-iframe (YouTube/Vimeo). Retorna null se url ausente/ inválida.
 
 "use client";
-import { useMemo, useState } from "react";
 
-/**
- * Extrai o ID de um vÃ­deo do YouTube a partir de diferentes formatos de URL.
- */
-function getYouTubeId(url: string): string | null {
+import { useMemo } from "react";
+
+type Props = {
+  url?: string | null;
+  className?: string;
+  title?: string;
+  aspect?: "16:9" | "4:3" | "1:1";
+};
+
+function toEmbed(url: string): string | null {
   try {
     const u = new URL(url);
-    if (u.hostname.includes("youtu.be")) {
-      return u.pathname.replace("/", "");
-    }
+    // YouTube
     if (u.hostname.includes("youtube.com")) {
       const id = u.searchParams.get("v");
-      if (id) return id;
-      // /embed/<id> ou /shorts/<id>
-      const segs = u.pathname.split("/").filter(Boolean);
-      if (segs[0] === "embed" || segs[0] === "shorts") return segs[1] ?? null;
+      return id ? `https://www.youtube.com/embed/${id}` : null;
     }
+    if (u.hostname === "youtu.be") {
+      const id = u.pathname.replace("/", "");
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    // Vimeo
+    if (u.hostname.includes("vimeo.com")) {
+      const id = u.pathname.split("/").filter(Boolean).at(-1);
+      return id ? `https://player.vimeo.com/video/${id}` : null;
+    }
+    // link direto de embed
+    if (/\/embed\//.test(u.pathname)) return url;
+    return null;
   } catch {
-    /* noop */
+    return null;
   }
-  return null;
 }
 
-/**
- * Retorna a thumbnail do YouTube para usar como poster do â€œliteâ€.
- */
-function youTubePoster(id: string): string {
-  // Alta resoluÃ§Ã£o quando disponÃ­vel; fallback padrÃ£o.
-  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
-}
+export default function VideoPlayer({ url, className, title = "Vídeo da receita", aspect = "16:9" }: Props) {
+  const src = useMemo(() => (url ? toEmbed(url) : null), [url]);
+  if (!src) return null;
 
-export default function VideoPlayer({ url }: { url: string }) {
-  const [loaded, setLoaded] = useState(false);
+  const pad =
+    aspect === "4:3" ? "pt-[75%]" :
+    aspect === "1:1" ? "pt-[100%]" :
+    "pt-[56.25%]"; // 16:9
 
-  const kind = useMemo<"youtube" | "mp4" | "other">(() => {
-    const lower = url.toLowerCase();
-    if (getYouTubeId(url)) return "youtube";
-    if (lower.endsWith(".mp4") || lower.includes(".mp4?")) return "mp4";
-    return "other";
-  }, [url]);
-
-  // YouTube â€” â€œliteâ€ (carrega iframe sÃ³ ao clicar)
-  if (kind === "youtube") {
-    const vid = getYouTubeId(url)!;
-    const poster = youTubePoster(vid);
-    const embed = `https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1`;
-
-    return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-        {!loaded && (
-          <button
-            aria-label="Reproduzir vÃ­deo"
-            className="group absolute inset-0 flex w-full items-center justify-center"
-            onClick={() => setLoaded(true)}
-          >
-            {/* Poster */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={poster}
-              alt="PrÃ©via do vÃ­deo"
-              className="absolute inset-0 h-full w-full object-cover opacity-90"
-            />
-            {/* BotÃ£o play */}
-            <span className="relative z-10 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-black shadow-lg ring-1 ring-black/10 transition group-hover:scale-110">
-              â–¶
-            </span>
-          </button>
-        )}
-        {loaded && (
-          <iframe
-            className="absolute inset-0 h-full w-full"
-            src={embed}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            loading="lazy"
-            title="YouTube Video"
-          />
-        )}
-      </div>
-    );
-  }
-
-  // MP4 direto
-  if (kind === "mp4") {
-    return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-        <video className="h-full w-full" src={url} controls playsInline />
-      </div>
-    );
-  }
-
-  // Fallback genÃ©rico (iframe) â€” para outras plataformas que suportem embed por URL direto
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-      <iframe
-        className="absolute inset-0 h-full w-full"
-        src={url}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        loading="lazy"
-        title="VÃ­deo"
-      />
+    <div className={className}>
+      <div className={`relative w-full ${pad}`}>
+        <iframe
+          loading="lazy"
+          src={src}
+          title={title}
+          className="absolute left-0 top-0 h-full w-full rounded"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      </div>
     </div>
   );
 }
-

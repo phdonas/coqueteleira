@@ -8,53 +8,96 @@ import supabaseServer from "@/lib/supabaseServer";
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
-// helper: suporta {params:{id}} ou Promise<{params:{id}}>
-async function extractId(ctx: any): Promise<string> {
-  const c = typeof ctx?.then === "function" ? await ctx : ctx;
-  return c?.params?.id as string;
+/**
+ * Garante que ctx foi aguardado (Next 15) e extrai { id } de params
+ */
+async function getParams(ctx: any): Promise<{ id: string }> {
+  const resolved = typeof ctx?.then === "function" ? await ctx : ctx;
+  // Agora, só acessamos params **depois** do await acima
+  return (resolved?.params ?? {}) as { id: string };
 }
 
+/** GET /api/recipes/[id] */
 export async function GET(_req: Request, ctx: any) {
-  const supabase = supabaseServer();
-  const id = await extractId(ctx);
+  try {
+    const supabase = await supabaseServer();
+    const { id } = await getParams(ctx);
 
-  const { data, error } = await supabase.from("recipes").select("*").eq("id", id).single();
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 404 });
+    const { data, error } = await supabase
+      .from("recipes")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-  return NextResponse.json({ ok: true, item: data });
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, item: data });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? "erro" }, { status: 500 });
+  }
 }
 
+/** PATCH /api/recipes/[id] */
 export async function PATCH(req: Request, ctx: any) {
-  const supabase = supabaseServer();
-  const id = await extractId(ctx);
+  try {
+    const supabase = await supabaseServer();
+    const { id } = await getParams(ctx);
+    const body = (await req.json().catch(() => ({}))) ?? {};
 
-  const body = await req.json().catch(() => ({} as any));
+    // Campos permitidos (alinhe com os nomes reais do seu schema)
+    const {
+      title,
+      ingredients_text,
+      steps_text,
+      image_url,
+      video_url,
+    }: {
+      title?: string;
+      ingredients_text?: string;
+      steps_text?: string;
+      image_url?: string | null;
+      video_url?: string | null;
+    } = body;
 
-  const title = body?.title === undefined ? undefined : String(body.title).trim();
-  const ingredients_text = body?.ingredientesText ?? body?.ingredients_text;
-  const steps_text = body?.modoPreparo ?? body?.steps_text ?? body?.instructions;
-  const image_url = body?.imageUrl ?? body?.image_url;
-  const video_url = body?.videoUrl ?? body?.video_url;
+    const patch: Record<string, any> = {};
+    if (title !== undefined) patch.title = title;
+    if (ingredients_text !== undefined) patch.ingredients_text = String(ingredients_text ?? "");
+    if (steps_text !== undefined) patch.steps_text = String(steps_text ?? "");
+    if (image_url !== undefined) patch.image_url = image_url ?? null;
+    if (video_url !== undefined) patch.video_url = video_url ?? null;
 
-  const patch: Record<string, any> = {};
-  if (title !== undefined) patch.title = title;
-  if (ingredients_text !== undefined) patch.ingredients_text = String(ingredients_text ?? "");
-  if (steps_text !== undefined) patch.steps_text = String(steps_text ?? "");
-  if (image_url !== undefined) patch.image_url = image_url ? String(image_url) : null;
-  if (video_url !== undefined) patch.video_url = video_url ? String(video_url) : null;
+    const { data, error } = await supabase
+      .from("recipes")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
 
-  const { data, error } = await supabase.from("recipes").update(patch).eq("id", id).select("*").single();
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, item: data });
+    return NextResponse.json({ ok: true, item: data });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? "erro" }, { status: 500 });
+  }
 }
 
+/** DELETE /api/recipes/[id] */
 export async function DELETE(_req: Request, ctx: any) {
-  const supabase = supabaseServer();
-  const id = await extractId(ctx);
+  try {
+    const supabase = await supabaseServer();
+    const { id } = await getParams(ctx);
 
-  const { error } = await supabase.from("recipes").delete().eq("id", id);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    const { error } = await supabase.from("recipes").delete().eq("id", id);
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? "erro" }, { status: 500 });
+  }
 }

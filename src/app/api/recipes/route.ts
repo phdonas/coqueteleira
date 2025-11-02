@@ -1,54 +1,34 @@
 ﻿// src/app/api/recipes/route.ts
 // src/app/api/recipes/route.ts
-// GET (lista + filtros) e POST (criar receita)
-
-import { NextRequest, NextResponse } from "next/server";
+// Lista + criação de receitas (ajuste: aguardar supabaseServer)
+import { NextResponse } from "next/server";
 import supabaseServer from "@/lib/supabaseServer";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const supabase = supabaseServer();
-  const { searchParams } = new URL(req.url);
-  const q = (searchParams.get("q") ?? "").trim();
-  const byIngredient = (searchParams.get("ingredient") ?? "").trim();
+export async function GET() {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.from("recipes").select("*").order("created_at", { ascending: false });
 
-  let query = supabase.from("recipes").select("*").order("created_at", { ascending: false });
-
-  if (q) query = query.ilike("title", `%${q}%`);
-  if (byIngredient) query = query.ilike("ingredients_text", `%${byIngredient}%`);
-
-  const { data, error } = await query;
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-
   return NextResponse.json({ ok: true, items: data ?? [] });
 }
 
-export async function POST(req: NextRequest) {
-  const supabase = supabaseServer();
+export async function POST(req: Request) {
+  const supabase = await supabaseServer();
   const body = await req.json().catch(() => ({} as any));
 
-  // normalização defensiva
-  const title: string = (body?.title ?? "").toString().trim();
-  const ingredientesText: string = (body?.ingredientesText ?? body?.ingredients_text ?? "").toString();
-  const modoPreparo: string = (body?.modoPreparo ?? body?.steps ?? body?.instructions ?? "").toString();
-  const imageUrl: string | null = (body?.imageUrl ?? body?.image_url ?? null) ? String(body.imageUrl ?? body.image_url) : null;
-  const videoUrl: string | null = (body?.videoUrl ?? body?.video_url ?? null) ? String(body.videoUrl ?? body.video_url) : null;
-
-  if (!title) {
-    return NextResponse.json({ ok: false, error: "title é obrigatório" }, { status: 400 });
-  }
-
-  const payload = {
-    title,
-    ingredients_text: ingredientesText,
-    steps_text: modoPreparo,
-    image_url: imageUrl,
-    video_url: videoUrl,
+  const row = {
+    title: String(body?.title ?? body?.nome ?? ""),
+    ingredients_text: String(body?.ingredientesText ?? body?.ingredientes_text ?? ""),
+    steps_text: String(body?.modoPreparo ?? body?.steps_text ?? body?.instructions ?? ""),
+    image_url: body?.imageUrl ?? body?.image_url ?? null,
+    video_url: body?.videoUrl ?? body?.video_url ?? null,
+    is_public: !!body?.is_public,
   };
 
-  const { data, error } = await supabase.from("recipes").insert(payload).select("*").single();
+  const { data, error } = await supabase.from("recipes").insert(row).select("*").single();
 
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, item: data }, { status: 201 });
