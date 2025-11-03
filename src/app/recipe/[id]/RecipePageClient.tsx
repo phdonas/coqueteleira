@@ -1,74 +1,100 @@
-﻿'use client';
+﻿// src/app/recipe/[id]/RecipePageClient.tsx
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import type { RecipeWithIngredients } from '@/types';
-import FavoriteButton from '@/components/FavoriteButton';
+import { useRouter } from "next/navigation";
+import React from "react";
 
-export default function RecipePageClient({ id }: { id: string }) {
-  const [data, setData] = useState<RecipeWithIngredients | null>(null);
-  const [loading, setLoading] = useState(true);
+type RecipeIn = {
+  id: string;
+  name?: string | null;
+  title?: string | null; // legado
+  image_url?: string | null;
+  video_url?: string | null;
+  ingredients_text?: string | null;
+  ingredientsText?: string | null; // legado
+  steps_text?: string | null;
+  instructions?: string | null; // legado
+  url?: string | null;
+};
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch(`/api/recipes/${id}`, { cache: 'no-store' });
-        const json = await res.json();
-        if (alive) setData(json.ok ? json.item : null);
-      } catch {
-        if (alive) setData(null);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [id]);
+type Props = {
+  data: RecipeIn;
+};
 
-  if (loading) return <div className="max-w-4xl mx-auto p-4 text-neutral-300">Carregando…</div>;
+function normalizeRecipe(r: RecipeIn) {
+  return {
+    id: r.id,
+    name: r.name ?? r.title ?? "",
+    image_url: r.image_url ?? null,
+    video_url: r.video_url ?? null,
+    url: r.url ?? null,
+    ingredients_text: r.ingredients_text ?? r.ingredientsText ?? "",
+    steps_text: r.steps_text ?? r.instructions ?? "",
+  };
+}
 
-  if (!data) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 text-red-400">
-        Receita não encontrada (ou você não tem permissão para vê-la).
-        <div className="mt-4">
-          <Link className="px-3 py-1 rounded border border-neutral-600" href="/">Voltar</Link>
-        </div>
-      </div>
-    );
-  }
+export default function RecipePageClient({ data }: Props) {
+  const router = useRouter();
+  const rec = normalizeRecipe(data);
+
+  const ingredients = (rec.ingredients_text || "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <Link className="px-3 py-1 rounded border border-neutral-600" href="/">Voltar</Link>
-        <FavoriteButton recipeId={data.id} />
+    <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => router.back()}
+          className="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-sm"
+        >
+          Voltar
+        </button>
+        <h1 className="text-2xl font-semibold">{rec.name}</h1>
+        <div />
       </div>
 
-      <h1 className="text-xl font-semibold text-neutral-100">{data.nome}</h1>
-
-      {data.apresentacao && (
-        <p className="mt-2 text-neutral-300">{data.apresentacao}</p>
+      {!!rec.image_url && (
+        <img
+          src={rec.image_url}
+          alt={rec.name}
+          className="w-full rounded-lg object-cover border border-neutral-800"
+        />
       )}
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-neutral-200">Ingredientes</h2>
-        {data.ingredientes?.length ? (
-          <ul className="list-disc pl-6 mt-2 text-neutral-200">
-            {data.ingredientes.map((i, idx) => (
-              <li key={idx}>
-                {[i.quantidade_raw, i.unidade_label, i.produto_raw].filter(Boolean).join(' ')}
-              </li>
+      {!!rec.video_url && (
+        <div className="aspect-video w-full overflow-hidden rounded-lg border border-neutral-800">
+          <iframe
+            className="w-full h-full"
+            src={rec.video_url}
+            title={rec.name}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="text-xl font-semibold">Ingredientes</h2>
+        {ingredients.length ? (
+          <ul className="list-disc ml-6 space-y-1">
+            {ingredients.map((line, i) => (
+              <li key={i}>{line}</li>
             ))}
           </ul>
         ) : (
-          <p className="text-neutral-400 mt-2">Nenhum ingrediente cadastrado.</p>
+          <p className="text-sm text-neutral-400">Sem ingredientes informados.</p>
         )}
       </section>
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-neutral-200">Modo de preparo</h2>
-        <p className="text-neutral-300 mt-2">{data.modo_preparo ?? '—'}</p>
+      <section className="space-y-2">
+        <h2 className="text-xl font-semibold">Modo de preparo</h2>
+        {rec.steps_text ? (
+          <p className="whitespace-pre-wrap leading-relaxed">{rec.steps_text}</p>
+        ) : (
+          <p className="text-sm text-neutral-400">Sem instruções informadas.</p>
+        )}
       </section>
     </div>
   );

@@ -3,103 +3,85 @@
 import { NextResponse } from "next/server";
 import supabaseServer from "@/lib/supabaseServer";
 
-/**
- * Rota de busca (nome/ingrediente) com paginação.
- * Mantém compatibilidade do helper jsonOK/jsonError aceitando número (ex.: 200)
- * ou o objeto ResponseInit (ex.: { status: 200 }).
- */
-
-export const revalidate = 0;
-export const dynamic = "force-dynamic";
-
-// Mantido o shape usado no projeto
 type Item = {
   id: string;
   name: string | null;
-  title: string | null;
   url: string | null;
   image_url: string | null;
   video_url: string | null;
   is_public: boolean | null;
   created_at: string | null;
   updated_at: string | null;
+  ingredients_text: string | null;
+  steps_text: string | null;
 };
 
-// Helpers corrigidos (aceitam number | ResponseInit)
-function jsonOK(body: unknown, init?: number | ResponseInit) {
-  const resInit: ResponseInit | undefined =
-    typeof init === "number" ? { status: init } : init;
-  return NextResponse.json(body, resInit);
+function jsonOK(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, init);
 }
 
-function jsonError(body: unknown, init?: number | ResponseInit) {
-  const resInit: ResponseInit | undefined =
-    typeof init === "number" ? { status: init } : init;
-  return NextResponse.json(body, resInit);
-}
-
+// GET /api/search?q=...&ingredient=...&page=1&pageSize=20
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") || "").trim();
     const ingredient = (url.searchParams.get("ingredient") || "").trim();
-
     const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-    const pageSize = Math.max(
-      1,
-      Math.min(50, Number(url.searchParams.get("pageSize") || 10)),
-    );
+    const pageSize = Math.max(1, Math.min(50, Number(url.searchParams.get("pageSize") || 10)));
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
     const supabase = await supabaseServer();
 
-    // Base da query com count para paginação
+    // Seleção padronizada + compat para dados antigos (title/instructions/ingredientsText)
     let query = supabase
       .from("recipes")
-      .select("*", { count: "exact" })
+      .select(
+        `
+        id,
+        name,
+        url,
+        image_url,
+        video_url,
+        is_public,
+        created_at,
+        updated_at,
+        ingredients_text,
+        steps_text
+      `,
+        { count: "exact" }
+      )
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    // Filtros (usamos .or para buscar em vários campos com q)
+    // Filtros (q por nome; ingredient por texto de ingredientes)
     if (q) {
-      // Busca por nome/título/ingredientes_text (ajuste aqui se os nomes forem outros)
-      const like = `%${q}%`;
-      query = query.or(
-        [
-          `name.ilike.${like}`,
-          `title.ilike.${like}`,
-          `ingredients_text.ilike.${like}`,
-        ].join(","),
-      );
+      // Nome final é 'name' (antes alguns lugares usavam 'title')
+      query = query.ilike("name", `%${q}%`);
     }
-
     if (ingredient) {
-      const likeIng = `%${ingredient}%`;
-      // Mantém a combinação do filtro existente com AND
-      query = query.ilike("ingredients_text", likeIng);
+      query = query.ilike("ingredients_text", `%${ingredient}%`);
     }
 
     const { data, error, count } = await query;
 
     if (error) {
-      return jsonError({ ok: false, error: error.message }, 500);
+      return jsonOK({ ok: false, error: error.message }, { status: 500 });
     }
 
-    const items: Item[] = (data ?? []) as Item[];
-
-    return jsonOK(
-      {
-        ok: true,
-        items,
-        page,
-        pageSize,
-        total: count ?? 0,
+    return jsonOK({
+      ok: true,
+      items: (data || []) as Item[],
+      page,
+      pageSize,
+      total: count ?? 0,
+      cols: {
+        name: "name",
+        ingredients: "ingredients_text",
       },
-      200,
-    );
-  } catch (err: any) {
-    return jsonError({ ok: false, error: String(err?.message || err) }, 500);
+    });
+  } catch (e: any) {
+    return jsonOK({ ok: false, error: e?.message || "Erro interno" }, { status: 500 });
   }
 }
