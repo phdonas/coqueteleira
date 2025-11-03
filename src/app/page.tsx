@@ -1,23 +1,26 @@
 ﻿// src/app/page.tsx
 // src/app/page.tsx
-// Server wrapper da Home (remove hooks da page e renderiza o client HomePageInner em <Suspense>)
-
 import { Suspense } from "react";
 import HomePageInner from "./HomePageInner";
 
-// Evita SSG e problemas de prerender quando a UI depende de estado/params no client
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+/**
+ * Página inicial (App Router – Next 15)
+ * Mantemos o <HomePageInner /> recebendo a prop obrigatória `initialItems`.
+ * Para não acoplar a página ao carregamento inicial da API, passamos um array
+ * vazio por padrão (depois a própria tela faz as buscas quando o usuário
+ * pesquisa ou navega). Isso resolve o erro de build sem afetar outras rotas.
+ */
+
+export const revalidate = 0; // sem cache para a home (opcional)
 
 export default function Page() {
   return (
-    <Suspense
-      fallback={
-        <div className="px-4 py-8 text-sm text-neutral-300">Carregandoâ€¦</div>
-      }
-    >
-      <HomePageInner />
-    </Suspense>
+    <main className="min-h-screen">
+      <Suspense fallback={<div className="p-6">Carregando…</div>}>
+        {/* IMPORTANTE: a prop `initialItems` é obrigatória no HomePageInner */}
+        <HomePageInner initialItems={[]} />
+      </Suspense>
+    </main>
   );
 }
 
