@@ -1,0 +1,14 @@
+// tests/health.spec.ts
+/**
+ * Changelog (2025-11-04):
+ * - Verifica /api/supa-health retorna 200 e ok:true.
+ */
+import { test, expect } from '@playwright/test';
+
+test('supa-health ok', async ({ request }) => {
+  const res = await request.get('/api/supa-health');
+  expect(res.ok()).toBeTruthy();
+  const js = await res.json();
+  expect(js.ok).toBeTruthy();
+  expect(js.total).toBeGreaterThanOrEqual(0);
+});

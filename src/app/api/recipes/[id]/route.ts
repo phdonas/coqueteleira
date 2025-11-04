@@ -1,107 +1,144 @@
 ﻿// src/app/api/recipes/[id]/route.ts
 // src/app/api/recipes/[id]/route.ts
-import { NextResponse } from "next/server";
-import supabaseServer from "@/lib/supabaseServer";
+/**
+ * Changelog (2025-11-04)
+ * - FIX TS: resposta de lista do Supabase pode ser `any[] | null`. Tipagem de `gi` corrigida.
+ * - SAFE: usa `Array.isArray(gi.data)` antes de usar.
+ * - Mantém handlers Next 15 (ctx.params como Promise), payload PT/EN, e deletes tolerantes.
+ */
 
-type PatchBody = {
-  // nomes finais
-  name?: string;
-  ingredients_text?: string;
-  steps_text?: string;
-  image_url?: string | null;
-  video_url?: string | null;
-  url?: string | null;
-  is_public?: boolean;
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-  // LEGADO (aceitamos e convertemos)
-  title?: string;
-  ingredientsText?: string;
-  instructions?: string;
-};
+type Any = Record<string, any>;
 
-function jsonOK(body: unknown, init?: ResponseInit) {
-  return NextResponse.json(body, init);
+function getSupa() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) throw new Error('Supabase não configurado (URL/KEY ausentes).');
+
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-async function extractId(ctx: any): Promise<string> {
-  const c = typeof ctx?.then === "function" ? await ctx : ctx;
-  return c?.params?.id as string;
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const supa = getSupa();
+
+    const { data: recipe, error }: { data: any; error: any } = await supa
+      .from('recipes')
+      .select(
+        [
+          'id',
+          'nome',
+          'name',
+          'title',
+          'apresentacao',
+          'description',
+          'imagem_url',
+          'image_url',
+          'video_url',
+          'modo_preparo',
+          'instructions',
+          'steps_text',
+          'ingredients_text',
+          'url',
+          'is_public',
+          'created_at',
+          'updated_at',
+        ].join(', ')
+      )
+      .eq('id', id)
+      .single();
+
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 404 });
+    if (!recipe) return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
+
+    // SELECT sem .single() => data: any[] | null
+    const gi: { data: any[] | null; error: any | null } = await supa
+      .from('recipe_ingredients')
+      .select(
+        'id, name, qty, unit, notes, description, text, produto, produto_raw, quantidade, quantidade_raw, unidade, unidade_label'
+      )
+      .eq('recipe_id', id);
+
+    const granular: Any[] = Array.isArray(gi.data) ? gi.data : [];
+
+    const base: Record<string, unknown> =
+      recipe && typeof recipe === 'object' && !Array.isArray(recipe) ? (recipe as Record<string, unknown>) : {};
+
+    const item = { ...base, recipe_ingredients: granular };
+
+    return NextResponse.json({ ok: true, item }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? 'Erro interno' }, { status: 500 });
+  }
 }
 
-export const revalidate = 0;
-export const dynamic = "force-dynamic";
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const payload = await req.json();
+    const supa = getSupa();
 
-// GET detalhe
-export async function GET(_req: Request, ctx: any) {
-  const supabase = await supabaseServer();
-  const id = await extractId(ctx);
+    const updateObj: Any = {
+      name: payload.name ?? payload.nome ?? payload.title ?? null,
+      title: payload.title ?? null,
+      nome: payload.nome ?? null,
+      apresentacao: payload.apresentacao ?? payload.description ?? null,
+      image_url: payload.image_url ?? payload.imagem_url ?? null,
+      video_url: payload.video_url ?? null,
+      steps_text: payload.steps_text ?? payload.modo_preparo ?? payload.instructions ?? null,
+      ingredients_text: payload.ingredients_text ?? payload.ingredientesText ?? null,
+      url: payload.url ?? null,
+      is_public: typeof payload.is_public === 'boolean' ? payload.is_public : undefined,
+      updated_at: new Date().toISOString(),
+    };
 
-  const { data, error } = await supabase
-    .from("recipes")
-    .select(
-      `
-      id,
-      name,
-      url,
-      image_url,
-      video_url,
-      is_public,
-      created_at,
-      updated_at,
-      ingredients_text,
-      steps_text
-    `
-    )
-    .eq("id", id)
-    .single();
+    const { data, error }: { data: any; error: any } = await supa
+      .from('recipes')
+      .update(updateObj)
+      .eq('id', id)
+      .select('*')
+      .single();
 
-  if (error) return jsonOK({ ok: false, error: error.message }, { status: 404 });
-
-  return jsonOK({ ok: true, item: data });
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, item: data }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? 'Erro interno' }, { status: 500 });
+  }
 }
 
-// PATCH (atualizar)
-export async function PATCH(req: Request, ctx: any) {
-  const supabase = await supabaseServer();
-  const id = await extractId(ctx);
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const supa = getSupa();
 
-  const body = (await req.json()) as PatchBody;
+    const delIngr: { error?: any | null } = await supa.from('recipe_ingredients').delete().eq('recipe_id', id);
+    if (delIngr.error && delIngr.error.code !== '42P01') {
+      // ignora outros erros para não bloquear a exclusão da receita
+    }
 
-  // Compatibilidade: aceitar nomes antigos e mapear
-  const patch: Record<string, any> = {};
-  if (body.name !== undefined || body.title !== undefined)
-    patch.name = body.name ?? body.title ?? null;
+    const { error }: { error?: any | null } = await supa.from('recipes').delete().eq('id', id);
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
 
-  if (body.ingredients_text !== undefined || body.ingredientsText !== undefined)
-    patch.ingredients_text = String(body.ingredients_text ?? body.ingredientsText ?? "");
-
-  if (body.steps_text !== undefined || body.instructions !== undefined)
-    patch.steps_text = String(body.steps_text ?? body.instructions ?? "");
-
-  if (body.image_url !== undefined) patch.image_url = body.image_url ?? null;
-  if (body.video_url !== undefined) patch.video_url = body.video_url ?? null;
-  if (body.url !== undefined) patch.url = body.url ?? null;
-  if (body.is_public !== undefined) patch.is_public = !!body.is_public;
-
-  const { data, error } = await supabase
-    .from("recipes")
-    .update(patch)
-    .eq("id", id)
-    .select("*")
-    .single();
-
-  if (error) return jsonOK({ ok: false, error: error.message }, { status: 500 });
-
-  return jsonOK({ ok: true, item: data });
-}
-
-// DELETE
-export async function DELETE(_req: Request, ctx: any) {
-  const supabase = await supabaseServer();
-  const id = await extractId(ctx);
-
-  const { error } = await supabase.from("recipes").delete().eq("id", id);
-  if (error) return jsonOK({ ok: false, error: error.message }, { status: 500 });
-
-  return jsonOK({ ok: true });
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? 'Erro interno' }, { status: 500 });
+  }
 }

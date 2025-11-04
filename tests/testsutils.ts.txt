@@ -1,0 +1,50 @@
+// tests/utils.ts
+/**
+ * Changelog (2025-11-04):
+ * - Helper para criar/editar/excluir receita via API do próprio app durante os testes.
+ * - Gera nomes únicos (timestamp) para evitar colisão entre execuções.
+ */
+import { request, APIRequestContext, expect } from '@playwright/test';
+
+export type RecipePayload = {
+  nome?: string;
+  name?: string;
+  title?: string;
+  apresentacao?: string;
+  image_url?: string;
+  video_url?: string;
+  ingredients_text?: string;
+  steps_text?: string;
+  url?: string | null;
+  is_public?: boolean;
+};
+
+export async function newApiContext(baseURL: string): Promise<APIRequestContext> {
+  return await request.newContext({ baseURL });
+}
+
+export function uniqName(prefix = 'Test Drink'): string {
+  const t = new Date().toISOString().replace(/[:.TZ-]/g, '');
+  return `${prefix} ${t}`;
+}
+
+export async function apiCreateRecipe(api: APIRequestContext, payload: Partial<RecipePayload> = {}) {
+  const body: RecipePayload = {
+    name: uniqName(),
+    apresentacao: 'Receita criada por testes automáticos',
+    ingredients_text: '60 ml gin\n30 ml campari\n30 ml vermouth rosso',
+    steps_text: 'Misturar com gelo e coar.',
+    is_public: true,
+    ...payload,
+  };
+  const res = await api.post('/api/recipes', { data: body });
+  const js = await res.json();
+  expect(js.ok, js.error || 'POST /api/recipes should return ok').toBeTruthy();
+  return js.item as { id: string; name?: string; nome?: string };
+}
+
+export async function apiDeleteRecipe(api: APIRequestContext, id: string) {
+  const res = await api.delete(`/api/recipes/${id}`);
+  const js = await res.json();
+  expect(js.ok, js.error || 'DELETE /api/recipes/:id should return ok').toBeTruthy();
+}

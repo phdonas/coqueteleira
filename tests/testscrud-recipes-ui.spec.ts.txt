@@ -1,0 +1,60 @@
+// tests/crud-recipes-ui.spec.ts
+/**
+ * Changelog (2025-11-04):
+ * - Fluxo UI: criar receita pela página /recipe/new, validar render no detalhe, editar e excluir.
+ * - Usa apenas campos obrigatórios (sem image_url obrigatório).
+ */
+import { test, expect } from '@playwright/test';
+import { uniqName, newApiContext, apiDeleteRecipe } from './utils';
+
+test('UI: criar, detalhar, editar e excluir receita', async ({ page, baseURL }) => {
+  const name = uniqName('UI Drink');
+  const steps = 'Mexer com gelo por 15s e coar.';
+  const ingredients = '60 ml gin\n10 ml vermouth seco';
+
+  // Criar
+  await page.goto('/');
+  await page.getByRole('link', { name: '+ Nova Receita' }).click();
+  await expect(page).toHaveURL(/\/recipe\/new/);
+
+  await page.getByLabel('Nome*').fill(name);
+  await page.getByLabel('Apresentação').fill('Criada pelo teste UI');
+  await page.getByLabel('Modo de preparo').fill(steps);
+  await page.getByLabel('Ingredientes \(um por linha\)').fill(ingredients);
+  await page.getByRole('button', { name: 'Salvar' }).click();
+
+  // Redireciona para detalhe
+  await expect(page).toHaveURL(/\/recipe\/.+/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
+  await expect(page.getByText('Ingredientes')).toBeVisible();
+  await expect(page.getByText('Modo de preparo')).toBeVisible();
+  await expect(page.getByText('gin', { exact: false })).toBeVisible();
+
+  // Editar
+  await page.getByRole('link', { name: 'Editar' }).click();
+  await expect(page).toHaveURL(/\/recipe\/.+\/edit/);
+  const newSteps = steps + '\nServir em copo baixo.';
+  await page.getByLabel('Modo de preparo').fill(newSteps);
+  await page.getByRole('button', { name: 'Salvar alterações' }).click();
+  await expect(page).toHaveURL(/\/recipe\/.+/);
+  await expect(page.getByText('Servir em copo baixo.', { exact: false })).toBeVisible();
+
+  // Captura id da URL para limpeza robusta via API
+  const id = page.url().split('/').pop()!;
+  const api = await newApiContext(baseURL!);
+
+  // Excluir pela UI
+  await page.getByRole('button', { name: 'Excluir' }).click();
+  // Confirmação do browser (confirm)
+  // Playwright não interage com confirm() diretamente; interceptamos via dialog:
+  page.once('dialog', (dialog) => dialog.accept());
+  // Clica novamente (caso o confirm esteja em outro timing)
+  await page.getByRole('button', { name: 'Excluir' }).click();
+
+  // Após exclusão, deve voltar para home
+  await expect(page).toHaveURL(new RegExp(`${baseURL}/?$`));
+
+  // Em caso de falha no fluxo UI, garante cleanup:
+  // (Tenta apagar via API; se já foi apagado, ignora)
+  try { await apiDeleteRecipe(api, id); } catch {}
+});

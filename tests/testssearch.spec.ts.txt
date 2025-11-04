@@ -1,0 +1,35 @@
+// tests/search.spec.ts
+/**
+ * Changelog (2025-11-04):
+ * - Valida busca por nome (q) e por ingrediente (ingredient).
+ */
+import { test, expect } from '@playwright/test';
+import { newApiContext, apiCreateRecipe, apiDeleteRecipe, uniqName } from './utils';
+
+test('busca por nome (q) e por ingrediente (ingredient) em /api/recipes', async ({ baseURL }) => {
+  const api = await newApiContext(baseURL!);
+
+  const customName = uniqName('Negroni do Teste');
+  const item = await apiCreateRecipe(api, {
+    name: customName,
+    ingredients_text: '60 ml gin\n30 ml campari\n30 ml vermouth rosso',
+  });
+
+  // Busca por nome
+  const byName = await api.get(`/api/recipes?q=${encodeURIComponent('Negroni do Teste')}`);
+  const jsName = await byName.json();
+  expect(jsName.ok).toBeTruthy();
+  const hitName = jsName.items.find((r: any) =>
+    (r.name || r.nome || r.title || '').toLowerCase().includes('negroni do teste'.toLowerCase())
+  );
+  expect(Boolean(hitName)).toBeTruthy();
+
+  // Busca por ingrediente
+  const byIngr = await api.get(`/api/recipes?ingredient=${encodeURIComponent('campari')}`);
+  const jsIngr = await byIngr.json();
+  expect(jsIngr.ok).toBeTruthy();
+  const hitIngr = jsIngr.items.find((r: any) => (r.ingredients_text || '').toLowerCase().includes('campari'));
+  expect(Boolean(hitIngr)).toBeTruthy();
+
+  await apiDeleteRecipe(api, item.id);
+});

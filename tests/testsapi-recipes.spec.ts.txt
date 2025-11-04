@@ -1,0 +1,32 @@
+// tests/api-recipes.spec.ts
+/**
+ * Changelog (2025-11-04):
+ * - Garante que GET /api/recipes responde com items[] (pode estar vazio em ambiente limpo).
+ * - Cria 1 receita via API e confirma que lista volta com >=1.
+ */
+import { test, expect } from '@playwright/test';
+import { newApiContext, apiCreateRecipe, apiDeleteRecipe } from './utils';
+
+test('GET /api/recipes retorna items[] e suporta paginação', async ({ baseURL }) => {
+  const api = await newApiContext(baseURL!);
+
+  // 1) lista inicial
+  const res0 = await api.get('/api/recipes');
+  expect(res0.ok()).toBeTruthy();
+  const js0 = await res0.json();
+  expect(js0.ok).toBeTruthy();
+  expect(Array.isArray(js0.items)).toBeTruthy();
+
+  // 2) cria um item
+  const item = await apiCreateRecipe(api);
+
+  // 3) lista novamente deve ter pelo menos 1 item (não garantimos >0 sem depender do seed)
+  const res1 = await api.get('/api/recipes');
+  const js1 = await res1.json();
+  expect(js1.ok).toBeTruthy();
+  expect(Array.isArray(js1.items)).toBeTruthy();
+  expect(js1.items.length).toBeGreaterThan(0);
+
+  // cleanup
+  await apiDeleteRecipe(api, item.id);
+});
